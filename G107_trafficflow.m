@@ -6,9 +6,11 @@ probname = 'G107';
 T_all = zeros(6,7);
 for j = 1:2 % Direction
     for k = (j-1)*3 + (1:3) % Lane
+        % for k = 1:1 % Lane
         close all
         % vd = [];
-        vd = cell(24,7);
+        vd = cell(7,24);
+        pdvgd = cell(24,1);
         data = [];
         % hour by hour
         T = zeros(24,7,7);
@@ -34,9 +36,9 @@ for j = 1:2 % Direction
                 L = Day_Dr_Lane(ct==n,14)/100; % vehicle length
                 dx = dt(2:end) .* v(1:end-1) - L(1:end-1);
                 dx(dt(2:end)>=600) = [];
-                dx(dx<0) = [];
+                dx(dx<=0) = [];
 
-                vd = [vd; dx]; % vehicle distance
+                vd{i,n} = dx; % vehicle distance
             end
 
             % extract vehicle gap distance
@@ -79,34 +81,31 @@ for j = 1:2 % Direction
         saveas(gcf,[figpath,p_name,c_name,'.png'])
         savefig(gcf,[figpath, p_name, c_name],'compact')
 
-        % modified on 20230518
-        % fit vehicle gap distance by truncated gaussian
-        % vd(vd>=100) = [];
-        % pdd = fittrunc(vd,'Normal',0,100);
-        % ,'display',false
-        [dist, tb] = optimal_commom_dist_new(vd);
-        xlabel(gcf().Children(2),'Vehicle gap distance (m)')
-        xlabel(gcf().Children(4),'Vehicle gap distance (m)')
-        table2tex(tb, 'output.tex')
-
         p_name = [probname,' '];
         c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' vehicle gap'];
         matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
         saveas(gcf,[figpath,p_name,c_name,'.png'])
         savefig(gcf,[figpath, p_name, c_name],'compact')
 
-        % v = Day_Dr_Lane(:,10)/3.6; % speed
-        % h = Day_Dr_Lane(:,20)/1000; % headway(车头)
-        % h0 = diff(Day_Dr_Lane(:,5))*24*3600;
-        % vL = Day_Dr_Lane(:,14)/100; % vehicle length
-        % % x = v.*h - vL;
-        % vd = Day_Dr_Lane(:,21)/100; % vehicle distance
-        % % x(vd==100) = [];
-        % vd(vd>=100) = [];
-        % % vd(x>=100) = [];
-        % % x(x>=100) = [];
-        % % fit vds by truncated gaussian
+
+        % % fit vd
         % pdd = fittrunc(vd,'Normal',0,100);
+        p_name = [probname,' '];
+        for n = 1:24
+            [dist, tb] = optimal_commom_dist_new(cell2mat(vd(:,n)));
+
+            pdvgd{n,1} = dist.opdist;
+            xlabel(gcf().Children(2),'Vehicle gap distance (m)')
+            xlabel(gcf().Children(4),'Vehicle gap distance (m)')
+
+            c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' vehicle gap hour ',num2str(n)];
+            table2tex(tb,['../doc\',p_name,c_name,'.tex'])
+            matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
+            saveas(gcf,[figpath,p_name,c_name,'.png'])
+            savefig(gcf,[figpath, p_name, c_name],'compact')
+            close
+        end
+
         % fit GVW by GMM
         % Data clean
         num_new = data_clean(data);
@@ -115,20 +114,20 @@ for j = 1:2 % Direction
         w = num_new(:,19)/100; % total weight,unit kN
 
         % 拟合车重分布
-        %         close all
-        % gm_model = cell(7,1);
-        % for m = 1:7
-        %     gm_model{m,1} = gmfit_best(w(c==m));
-        %     p_name = [probname,' '];
-        %     c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' GVW',' class ',num2str(m)];
-        %
-        %     matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
-        %     saveas(gcf,[figpath,p_name,c_name,'.png'])
-        %     savefig(gcf,[figpath, p_name, c_name],'compact')
-        % end
-        %
-        % p_name = [probname,'_'];
-        % save([p_name,'trafficflow_','Dr_',num2str(j),'_Lane_',num2str(k),'.mat'],'AADT','q','cls','pdd','gm_model');
+        close all
+        gm_model = cell(7,1);
+        for m = 1:7
+            gm_model{m,1} = gmfit_best(w(c==m));
+            p_name = [probname,' '];
+            c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' GVW',' class ',num2str(m)];
+
+            matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
+            saveas(gcf,[figpath,p_name,c_name,'.png'])
+            savefig(gcf,[figpath, p_name, c_name],'compact')
+        end
+
+        p_name = [probname,'_'];
+        save([p_name,'trafficflow_','Dr_',num2str(j),'_Lane_',num2str(k),'.mat'],'AADT','q','cls','pdvgd','gm_model');
     end
 end
 
@@ -165,9 +164,9 @@ end
 %     end
 % end
 fid = fopen(['../doc\',probname,' overvive.tex'], 'w','n','UTF-8');
-fprintf(fid, '\\begin{table}[tbph]\n');
+fprintf(fid, '\\begin{table}\n');
 fprintf(fid, '\\caption{AADT of each lane of each direction}\n');
-fprintf(fid, '\\begin{centering}\n');
+
 fprintf(fid, '\\begin{tabular}{ccc}\n');
 fprintf(fid, '\\toprule\n');
 fprintf(fid, 'Direction & Lane & AADT \\tabularnewline\n');
@@ -182,43 +181,46 @@ for j = 1:2 % Direction
 end
 fprintf(fid, '\\bottomrule\n');
 fprintf(fid, '\\end{tabular}\n');
-fprintf(fid, '\\par\\end{centering}\n');
+
 fprintf(fid, '\\end{table}\n\n');
 
 for j = 1:2
-    fprintf(fid, '\\begin{figure}[tbph]\n');
-    fprintf(fid, '\\begin{centering}\n');
+    fprintf(fid, '\\begin{figure}\n');
+
     fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Proportion of vehicle types.png}\n',probname,j);
-    fprintf(fid, '\\par\\end{centering}\n');
+
     fprintf(fid, '\\caption{Proportion of vehicle types (%s Dr %d)}\n',probname,j);
     fprintf(fid, '\\end{figure}\n\n');
 end
 
 
-% vehicle distance gap
-fprintf(fid, '\\begin{table}[tbph]\n');
-fprintf(fid, '\\caption{Fitting curve parameters of data per lane}\n');
-fprintf(fid, '\\begin{centering}\n');
-fprintf(fid, '\\begin{tabular}{ccccc}\n');
-fprintf(fid, '\\toprule\n');
+% %% vehicle distance gap
+% fprintf(fid, '\\begin{table}\n');
+% fprintf(fid, '\\caption{Fitting curve parameters of data per lane}\n');
+%
+% fprintf(fid, '\\begin{tabular}{ccccc}\n');
+% fprintf(fid, '\\toprule\n');
+%
+% fprintf(fid, '\\multirow{2}{*}{Direction} & \\multirow{2}{*}{Lane} & \\multirow{2}{*}{Distribution type} & \\multicolumn{2}{c}{parameters}\\tabularnewline\n');
+% fprintf(fid, '\\cmidrule{4-5} \\cmidrule{5-5}');
+% fprintf(fid, ' &  & & $\\mu$ & $\\sigma$\\tabularnewline\n');
+%
+% fprintf(fid, '\\midrule\n');
+% for j = 1:2 % Direction
+%     for k = (j-1)*3 + (1:3) % Lane
+%         p_name = [probname,'_'];
+%         matname = [p_name,'trafficflow_','Dr_',num2str(j),'_Lane_',num2str(k)];
+%         load([matname,'.mat'])
+%         fprintf(fid, '%d & %d & truncated normal & %.2f & %.2f \\tabularnewline\n', j, k, pdd.mu, pdd.sigma);
+%     end
+% end
+% fprintf(fid, '\\bottomrule\n');
+% fprintf(fid, '\\end{tabular}\n');
+%
+% fprintf(fid, '\\end{table}\n\n');
 
-fprintf(fid, '\\multirow{2}{*}{Direction} & \\multirow{2}{*}{Lane} & \\multirow{2}{*}{Distribution type} & \\multicolumn{2}{c}{parameters}\\tabularnewline\n');
-fprintf(fid, '\\cmidrule{4-5} \\cmidrule{5-5}');
-fprintf(fid, ' &  & & $\\mu$ & $\\sigma$\\tabularnewline\n');
-
-fprintf(fid, '\\midrule\n');
-for j = 1:2 % Direction
-    for k = (j-1)*3 + (1:3) % Lane
-        p_name = [probname,'_'];
-        matname = [p_name,'trafficflow_','Dr_',num2str(j),'_Lane_',num2str(k)];
-        load([matname,'.mat'])
-        fprintf(fid, '%d & %d & truncated normal & %.2f & %.2f \\tabularnewline\n', j, k, pdd.mu, pdd.sigma);
-    end
-end
-fprintf(fid, '\\bottomrule\n');
-fprintf(fid, '\\end{tabular}\n');
-fprintf(fid, '\\par\\end{centering}\n');
-fprintf(fid, '\\end{table}\n\n');
+% fid = fopen(['../doc\',probname,' vgd fitting figure.tex'], 'w','n','UTF-8');
+% VGD fitting
 
 fclose(fid);
 %
@@ -233,36 +235,12 @@ for j = 1:2 % Direction
         % fprintf(fid, '\\usepackage{booktabs}\n');
         % fprintf(fid, '\\begin{document}\n');
 
-        % traffic ratio
-        fprintf(fid, '\\begin{figure}[tbph]\n');
-        fprintf(fid, '\\begin{centering}\n');
-        fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d traffic ratio.pdf}\n',probname,j,k);
-        fprintf(fid, '\\par\\end{centering}\n');
-        fprintf(fid, '\\caption{Variation of hourly traffic}\n');
-        fprintf(fid, '\\end{figure}\n\n');
-
-        % vehicle ratio
-        fprintf(fid, '\\begin{figure}[tbph]\n');
-        fprintf(fid, '\\begin{centering}\n');
-        fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d vehicle ratio.pdf}\n',probname,j,k);
-        fprintf(fid, '\\par\\end{centering}\n');
-        fprintf(fid, '\\caption{Variation of vehicle ratio}\n');
-        fprintf(fid, '\\end{figure}\n\n');
-
-        % VGD fitting
-        fprintf(fid, '\\begin{figure}[tbph]\n');
-        fprintf(fid, '\\begin{centering}\n');
-        fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d vehicle gap.pdf}\n',probname,j,k);
-        fprintf(fid, '\\par\\end{centering}\n');
-        fprintf(fid, '\\caption{Gaus fit to vehicle gap distance}\n');
-        fprintf(fid, '\\end{figure}\n\n');
-
         % GVW fitting
         for m = 1:7
-            fprintf(fid, '\\begin{figure}[tbph]\n');
-            fprintf(fid, '\\begin{centering}\n');
-            fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d GVW class %d.pdf}\n',probname,j,k,m);
-            fprintf(fid, '\\par\\end{centering}\n');
+            fprintf(fid, '\\begin{figure}\n');
+            %
+            fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d GVW class %d.png}\n',probname,j,k,m);
+
             switch m
                 case 1
                     fprintf(fid, '\\caption{GMM fit to GVW of car}\n');
@@ -278,9 +256,9 @@ for j = 1:2 % Direction
 
 
         % GVW parametros
-        fprintf(fid, '\\begin{table}[tbph]\n');
+        fprintf(fid, '\\begin{table}\n');
         fprintf(fid, '\\caption{Fitting Curve Parameters of GVW (unit: kN)}\n');
-        fprintf(fid, '\\begin{centering}\n');
+
         fprintf(fid, '\\begin{tabular}{ccccc}\n');
         fprintf(fid, '\\toprule\n');
         fprintf(fid, 'Vehicle class & Peak & Probability & $\\mu$ & $\\sigma$ \\tabularnewline\n');
@@ -295,7 +273,6 @@ for j = 1:2 % Direction
             p = p(idx);
             sigma = sigma(idx);
             for Comp = 1:NumComp
-
                 switch m
                     case 1
                         %         fprintf(fid, '\\caption{GMM fitting to GVW of car}\n');
@@ -323,8 +300,31 @@ for j = 1:2 % Direction
 
         fprintf(fid, '\\bottomrule\n');
         fprintf(fid, '\\end{tabular}\n');
-        fprintf(fid, '\\par\\end{centering}\n');
         fprintf(fid, '\\end{table}\n\n');
+
+
+        % traffic ratio
+        fprintf(fid, '\\begin{figure}\n');
+        fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d traffic ratio.png}\n',probname,j,k);
+        fprintf(fid, '\\caption{Variation of hourly traffic}\n');
+        fprintf(fid, '\\end{figure}\n\n');
+
+        % vehicle ratio
+        fprintf(fid, '\\begin{figure}\n');
+        fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d vehicle ratio.png}\n',probname,j,k);
+        fprintf(fid, '\\caption{Variation of vehicle ratio}\n');
+        fprintf(fid, '\\end{figure}\n\n');
+        
+        fprintf(fid, '\\newpage\n');
+        % vehicle gap
+        for n = 1:24
+            fprintf(fid, '\\begin{figure}\n');
+            fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d vehicle gap hour %d.png}\n',probname,j,k,n);
+            fprintf(fid, '\\caption{Fitting to vehicle gap distance hour %d}\n',n);
+            fprintf(fid, '\\end{figure}\n\n');
+            fprintf(fid, '\\input{%s Dr %d Lane %d vehicle gap hour %d.tex}\n\n',probname,j,k,n);
+            fprintf(fid, '\\newpage\n');
+        end
 
         % fprintf(fid, '\\end{document}\n');
         fclose(fid);
