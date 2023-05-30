@@ -1,8 +1,8 @@
-% 先把G107的做好再说其他的
 clear;close all;clc
 figpath = 'figures\';
 probname = 'G107';
 %% G107
+data = [];
 T_all = zeros(6,7);
 for j = 1:2 % Direction
     for k = (j-1)*3 + (1:3) % Lane
@@ -11,7 +11,7 @@ for j = 1:2 % Direction
         % vd = [];
         vd = cell(7,24);
         pdvgd = cell(24,1);
-        data = [];
+
         % hour by hour
         T = zeros(24,7,7);
         for i = 1:7 % DAY
@@ -56,39 +56,36 @@ for j = 1:2 % Direction
         T_all(k,:) = sum(T);
 
 
-
+        % Percent of traffic volume
         figure;plot(100*q,'o-','linewidth',1)
-        xlabel('Time (hour)');
+        xlabel('Time (hour)','Interpreter','latex');
         ylabel('Percent of traffic volume (\%)','Interpreter','latex');
         xticks(0:2:24)
 
         p_name = [probname,' '];
         c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' traffic ratio'];
-        matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
+
         saveas(gcf,[figpath,p_name,c_name,'.png'])
         savefig(gcf,[figpath, p_name, c_name],'compact')
+        % matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
 
+        % Percent of vehicles
         figure;plot(100*cls,'linewidth',1)
         legend({'car','bus','2-axle truck','3-axle truck','4-axle truck','5-axle truck','6-axle truck'},'location','best','NumColumns',2)
         %         legend({'小客车','大客车','2轴货车','3轴货车','4轴货车','5轴货车','6轴货车'},'location','best','NumColumns',2)
-        xlabel('Time (hour)');
+        xlabel('Time (hour)','Interpreter','latex');
         ylabel('Percent of vehicles (\%)','Interpreter','latex');
         xticks(0:2:24)
 
         p_name = [probname,' '];
         c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' vehicle ratio'];
-        matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
+
         saveas(gcf,[figpath,p_name,c_name,'.png'])
         savefig(gcf,[figpath, p_name, c_name],'compact')
-
-        p_name = [probname,' '];
-        c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' vehicle gap'];
-        matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
-        saveas(gcf,[figpath,p_name,c_name,'.png'])
-        savefig(gcf,[figpath, p_name, c_name],'compact')
+        % matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
 
 
-        % % fit vd
+        % fit vd
         % pdd = fittrunc(vd,'Normal',0,100);
         p_name = [probname,' '];
         for n = 1:24
@@ -100,37 +97,18 @@ for j = 1:2 % Direction
 
             c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' vehicle gap hour ',num2str(n)];
             table2tex(tb,['../doc\',p_name,c_name,'.tex'])
-            matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
+            % matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
             saveas(gcf,[figpath,p_name,c_name,'.png'])
             savefig(gcf,[figpath, p_name, c_name],'compact')
             close
         end
 
-        % fit GVW by GMM
-        % Data clean
-        num_new = data_clean(data);
-        % extract GVW data
-        c = num_new(:,12); % class index
-        w = num_new(:,19)/100; % total weight,unit kN
-
-        % 拟合车重分布
-        close all
-        gm_model = cell(7,1);
-        for m = 1:7
-            gm_model{m,1} = gmfit_best(w(c==m));
-            p_name = [probname,' '];
-            c_name = ['Dr ',num2str(j),' Lane ',num2str(k),' GVW',' class ',num2str(m)];
-
-            matlab2tikz([figpath,p_name,c_name,'.tex'],'showInfo', false,'checkForUpdates',false,'standalone',true)
-            saveas(gcf,[figpath,p_name,c_name,'.png'])
-            savefig(gcf,[figpath, p_name, c_name],'compact')
-        end
-
         p_name = [probname,'_'];
-        save([p_name,'trafficflow_','Dr_',num2str(j),'_Lane_',num2str(k),'.mat'],'AADT','q','cls','pdvgd','gm_model');
+        save([p_name,'trafficflow_','Dr_',num2str(j),'_Lane_',num2str(k),'.mat'],'AADT','q','cls','pdvgd');
     end
 end
-
+%%
+T_all = T_all./sum(T_all,2)*100;
 for j = 1:2
     X = categorical({['Lane ',num2str((j-1)*3 + 1)],...
         ['Lane ',num2str((j-1)*3 + 2)],...
@@ -149,6 +127,10 @@ for j = 1:2
     saveas(gcf,[figpath,p_name,c_name,'.png'])
     savefig(gcf,[figpath, p_name, c_name],'compact')
 end
+
+%% fit GVW by GMM
+day = 7;
+GVW_representative_vehicle
 %% write into texfile
 % overview of the data: traffic volume
 
@@ -314,7 +296,7 @@ for j = 1:2 % Direction
         fprintf(fid, '\\includegraphics{../code/figures/%s Dr %d Lane %d vehicle ratio.png}\n',probname,j,k);
         fprintf(fid, '\\caption{Variation of vehicle ratio}\n');
         fprintf(fid, '\\end{figure}\n\n');
-        
+
         fprintf(fid, '\\newpage\n');
         % vehicle gap
         for n = 1:24

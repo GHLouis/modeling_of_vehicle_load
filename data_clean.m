@@ -13,6 +13,7 @@ function data_cleaned = data_clean(data)
 % [~,b] = sort(t);
 % data = data(b,:);
 
+%% type
 c = data(:,12); % class index
 C = zeros(size(c));
 fprintf('Data before cleaning: %d\n',size(data,1));
@@ -26,30 +27,53 @@ C(c==7) = 6;
 C(c==10) = 7;
 data(:,12) = C;
 
+%% axle number
+N = data(:,15); 
 
-AW = data(:,26:31)/100; % axle weight
+%% weight
+% axle weight
+AW = data(:,26:31)/100; 
 AW(isnan(AW)) = 0;
 SAW = sum(AW,2); % sum of axle weight
-N = data(:,15); % axle number
-
-GVW = data(:,19)/100; % gross vehicle weight
+% gross vehicle weight
+GVW = data(:,19)/100; 
 AW(AW==0) = nan;
-mAWr = min(AW./GVW,[],2); % smallest proportion of axle weight to GVW
-VL = data(:,14)/100; % vehicle length
-H = data(:,20)/1000; % headway
+% smallest proportion of axle weight to GVW
+mAWr = min(AW./GVW,[],2); 
 
-a = abs((SAW-GVW)./GVW) > 0.1;
-b = GVW<8 | GVW>1000;
-c = VL<2 | VL>36;
-d = mAWr<0.05;
-e = H<0.3;
-f = N>6;
+%% length
+% wheelbase
+AS = data(:,46:50)/100; 
+AS(isnan(AS)) = 0;
+SAS = sum(AS,2); % sum of axle weight
+% vehicle length
+VL = data(:,14)/100;
 
-% GVW of car cannoe exceed 10 ton?
-g = C==1 & GVW>100; 
-clean = a|b|c|d|e|f|g;
+%% time
+% 车头headway
+H = data(:,20)/1000; 
 
-data(clean,:) = [];
+%% clean criteria
+cc = zeros(size(data,1),1);
+
+% weight
+cc0 = (SAW-GVW)~=0; cc = cc | cc0;
+cc0 = mAWr<0.05; cc = cc | cc0;
+
+% cc0 = GVW<10; cc = cc | cc0;
+
+% length
+cc0 = VL-SAS < 1; cc = cc | cc0;
+cc0 = VL./SAS > 3; cc = cc | cc0;
+cc0 = VL<2 | VL>36; cc = cc | cc0;
+
+cc0 = H<0.3; cc = cc | cc0;
+cc0 = N>6; cc = cc | cc0;
+
+% % GVW of car cannoe exceed 10 ton?
+% cc0 = C==1 & GVW>50; cc = cc | cc0;
+
+data(cc,:) = [];
 data_cleaned = data;
 fprintf('Data after cleaning: %d\n',size(data_cleaned,1));
 tabulate(data_cleaned(:,12))
